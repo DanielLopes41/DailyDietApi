@@ -109,5 +109,41 @@ export class MealsController {
       return reply.send(e);
     }
   }
+  async metrics(
+    request: FastifyRequest<{ Params: Params }>,
+    reply: FastifyReply
+  ) {
+    try {
+      const meals = await knex("meals").select("*");
+      const bestOnDietSequence = meals.reduce(
+        (acc, meal) => {
+          if (meal.isOnDiet) {
+            acc.currentSequence += 1;
+          } else {
+            acc.currentSequence = 0;
+          }
+
+          if (acc.currentSequence > acc.bestOnDietSequence) {
+            acc.bestOnDietSequence = acc.currentSequence;
+          }
+
+          return acc;
+        },
+        { bestOnDietSequence: 0, currentSequence: 0 }
+      );
+      return reply.status(200).send({
+        Length: meals.length,
+        MealsInDiet: meals.reduce((acc, currentMeal) => {
+          return currentMeal.isOnDiet ? acc + 1 : acc;
+        }, 0),
+        MealsOutOfDiet: meals.reduce((acc, currentMeal) => {
+          return currentMeal.isOnDiet ? acc : acc + 1;
+        }, 0),
+        MaxGoals: bestOnDietSequence,
+      });
+    } catch (e) {
+      return reply.send(e);
+    }
+  }
 }
 export default new MealsController();
