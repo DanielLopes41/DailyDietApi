@@ -9,19 +9,19 @@ export class UserController {
         email: z.string().email(),
         name: z.string(),
       });
-      let session_id = request.cookies.session_id;
-      if (!session_id) {
-        session_id = crypto.randomUUID();
-
-        reply.cookie("sessionId", session_id, {
-          path: "/",
-          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-        });
-      }
       const { email, name } = createUserBodySchema.parse(request.body);
       const userByEmail = await knex("users").where({ email }).first();
       if (userByEmail) {
         return reply.status(409).send({ message: "E-mail já cadastrado" });
+      }
+      let session_id = request.cookies.session_id;
+      if (!session_id) {
+        session_id = crypto.randomUUID();
+
+        reply.cookie("session_id", session_id, {
+          path: "/",
+          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        });
       }
       const [newUser] = await knex("users")
         .insert({

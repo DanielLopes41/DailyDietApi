@@ -3,11 +3,15 @@ import { knex } from "../../database";
 import crypto from "node:crypto";
 import { format } from "date-fns";
 import z from "zod";
+
 interface Params {
   id: string;
 }
+
 export class MealsController {
   async store(request: FastifyRequest, reply: FastifyReply) {
+    const session_id = request.user?.session_id;
+
     try {
       const createUserBodySchema = z.object({
         name: z
@@ -21,45 +25,50 @@ export class MealsController {
       const { name, isOnDiet, description } = createUserBodySchema.parse(
         request.body
       );
-      const tempValue = crypto.randomUUID();
       const [meal] = await knex("meals")
         .insert({
           description,
           id: crypto.randomUUID(),
           isOnDiet,
           name,
-          session_id: tempValue,
+          session_id,
         })
         .returning("*");
-      return reply.status(200).send(meal);
+      return reply.status(201).send(meal);
     } catch (e) {
-      return reply.send(e);
+      return reply.status(400).send(e);
     }
   }
+
   async index(request: FastifyRequest, reply: FastifyReply) {
+    const session_id = request.user?.session_id;
     try {
-      const meals = await knex("meals").select("*");
+      const meals = await knex("meals").where({ session_id });
       return reply.status(200).send(meals);
     } catch (e) {
-      return reply.send(e);
+      return reply.status(500).send(e);
     }
   }
+
   async show(request: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
+    const session_id = request.user?.session_id;
     try {
       const { id } = request.params;
-      const meals = await knex("meals").where({ id }).first();
+      const meals = await knex("meals").where({ id, session_id }).first();
       if (!meals) {
         return reply.status(404).send({ message: "Meal not found" });
       }
       return reply.status(200).send(meals);
     } catch (e) {
-      return reply.send(e);
+      return reply.status(500).send(e);
     }
   }
+
   async update(
     request: FastifyRequest<{ Params: Params }>,
     reply: FastifyReply
   ) {
+    const session_id = request.user?.session_id;
     try {
       const { id } = request.params;
       const createUserBodySchema = z.object({
@@ -78,7 +87,7 @@ export class MealsController {
       const { name, isOnDiet, description, updated_at } =
         createUserBodySchema.parse(request.body);
       const [meal] = await knex("meals")
-        .where({ id })
+        .where({ id, session_id })
         .update({
           description,
           isOnDiet,
@@ -88,16 +97,18 @@ export class MealsController {
         .returning("*");
       return reply.status(200).send(meal);
     } catch (e) {
-      return reply.send(e);
+      return reply.status(400).send(e);
     }
   }
+
   async delete(
     request: FastifyRequest<{ Params: Params }>,
     reply: FastifyReply
   ) {
+    const session_id = request.user?.session_id;
     try {
       const { id } = request.params;
-      const meal = await knex("meals").where({ id }).first();
+      const meal = await knex("meals").where({ id, session_id }).first();
 
       if (!meal) {
         return reply.status(404).send({ message: "Meal not found" });
@@ -106,15 +117,17 @@ export class MealsController {
       await knex("meals").where({ id }).delete();
       return reply.status(200).send({ message: "Meal deleted successfully" });
     } catch (e) {
-      return reply.send(e);
+      return reply.status(500).send(e);
     }
   }
+
   async metrics(
     request: FastifyRequest<{ Params: Params }>,
     reply: FastifyReply
   ) {
+    const session_id = request.user?.session_id;
     try {
-      const meals = await knex("meals").select("*");
+      const meals = await knex("meals").where({ session_id });
       const bestOnDietSequence = meals.reduce(
         (acc, meal) => {
           if (meal.isOnDiet) {
@@ -142,8 +155,9 @@ export class MealsController {
         MaxGoals: bestOnDietSequence,
       });
     } catch (e) {
-      return reply.send(e);
+      return reply.status(500).send(e);
     }
   }
 }
+
 export default new MealsController();
